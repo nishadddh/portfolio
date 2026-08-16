@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nishad 2.0 AI</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #020617, #0f172a);
+    color: white;
+    overflow-x: hidden;
+}
+
+/* HEADER */
+header {
+    padding: 20px 40px;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #38bdf8;
+}
+
+/* HERO */
+.hero {
+    position: relative;
+    text-align: center;
+    padding: 140px 20px;
+    overflow: hidden;
+}
+
+/* BACKGROUND IMAGE */
+.bg-image {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.08;
+    width: 500px;
+    z-index: 0;
+}
+
+/* OVERLAY */
+.overlay {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, transparent 40%, #020617 90%);
+    z-index: 0;
+}
+
+/* TEXT */
+.hero h1 {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    position: relative;
+    z-index: 2;
+}
+
+.hero span {
+    color: #38bdf8;
+}
+
+.hero p {
+    color: #94a3b8;
+    margin-bottom: 25px;
+    position: relative;
+    z-index: 2;
+}
+
+/* BUTTON */
+.hero button {
+    padding: 14px 30px;
+    border: none;
+    border-radius: 12px;
+    background: #38bdf8;
+    color: black;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 16px;
+    transition: 0.3s;
+    position: relative;
+    z-index: 2;
+}
+
+.hero button:hover {
+    background: #0ea5e9;
+}
+
+/* FEATURES */
+.features {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 25px;
+    padding: 50px 20px;
+}
+
+.card {
+    background: #1e293b;
+    padding: 25px;
+    border-radius: 15px;
+    width: 250px;
+    text-align: center;
+    transition: 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-8px);
+}
+
+/* CHAT HINT */
+.chat-hint {
+    position: fixed;
+    bottom: 110px;
+    right: 90px;
+    font-size: 14px;
+    color: #38bdf8;
+    animation: blink 1.5s infinite;
+}
+
+/* ARROW */
+.arrow {
+    position: fixed;
+    bottom: 70px;
+    right: 50px;
+    width: 40px;
+    height: 40px;
+    border-right: 4px solid #38bdf8;
+    border-bottom: 4px solid #38bdf8;
+    transform: rotate(45deg);
+    animation: bounce 1.2s infinite;
+}
+
+/* ANIMATIONS */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0) rotate(45deg); }
+    50% { transform: translateY(10px) rotate(45deg); }
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* FOOTER */
+footer {
+    text-align: center;
+    padding: 20px;
+    color: #64748b;
+}
+
+/* OPTIONAL GLOW */
+iframe[src*="botpress"] {
+    box-shadow: 0 0 25px rgba(56,189,248,0.5);
+    border-radius: 12px !important;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <div class="logo">🤖 Nishad 2.0</div>
+</header>
+
+<section class="hero">
+
+    <div class="overlay"></div>
+    <img src="nishad.png" class="bg-image">
+
+    <h1>Your Personal AI <span>Nishad 2.0</span></h1>
+    <p>Smart. Fast. Always ready to help you.</p>
+
+
+    <!-- Hint + Arrow -->
+    <div class="chat-hint">👉 Click here to start chatting</div>
+    <div class="arrow"></div>
+
+</section>
+
+<section class="features">
+    <div class="card">
+        <h3>⚡ Fast Response</h3>
+        <p>Instant answers powered by AI.</p>
+    </div>
+
+    <div class="card">
+        <h3>🧠 Smart AI</h3>
+        <p>Understands your questions intelligently.</p>
+    </div>
+
+    <div class="card">
+        <h3>🌍 24/7 Available</h3>
+        <p>Your assistant anytime, anywhere.</p>
+    </div>
+</section>
+
+<!-- BOTPRESS -->
+<script src="https://cdn.botpress.cloud/webchat/v2.2/inject.js"></script>
+<script src="https://files.bpcontent.cloud/2025/02/28/17/20250228172924-DDT8EHXO.js"></script>
+
+<script>
+let botReady = false;
+
+window.botpressWebChat.init({
+    botId: 'your-bot-id', // 🔴 replace with your real ID
+    hostUrl: 'https://cdn.botpress.cloud/webchat/v2.2',
+    botName: 'Nishad 2.0',
+    avatarUrl: 'nishad.jpg',
+    useSessionStorage: true,
+    showConversationsButton: false,
+    enableTranscriptDownload: false,
+
+    onEvent: (event) => {
+        if (event.type === "LIFECYCLE.LOADED") {
+            botReady = true;
+            console.log("Bot ready ✅");
+        }
+    }
+});
+
+
+</script>
+
+<footer>
+    © 2026 Nishad 2.0 AI | Built with ❤️
+</footer>
+
+</body>
+</html>

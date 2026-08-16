@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Image Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --border: #2a2a3a;
+      --accent: #7c5cfc;
+      --accent2: #fc5c7d;
+      --text: #e8e8f0;
+      --muted: #6b6b80;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 40px 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2rem, 6vw, 4rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -1px;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 10px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 640px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.9rem;
+      padding: 14px 16px;
+      resize: vertical;
+      min-height: 90px;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+    }
+
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    button:hover { opacity: 0.88; }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .status {
+      margin-top: 18px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      min-height: 20px;
+      text-align: center;
+    }
+
+    .status.error { color: var(--accent2); }
+    .status.loading { color: var(--accent); }
+
+    .output {
+      margin-top: 28px;
+      display: none;
+    }
+
+    .output img {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+
+    .download-btn {
+      margin-top: 14px;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 0.85rem;
+      padding: 10px;
+    }
+
+    .download-btn:hover { background: var(--accent); color: #fff; opacity: 1; }
+
+    .loader {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>IMAGINE.</h1>
+  <p>AI Image Generation · Stable Diffusion 2.1</p>
+</header>
+
+<div class="card">
+  <label for="prompt">Your Prompt</label>
+  <textarea id="prompt" placeholder="a futuristic city at sunset, cinematic lighting, ultra detailed..."></textarea>
+
+  <button id="generateBtn" onclick="generate()">Generate Image</button>
+
+  <div class="status" id="status"></div>
+
+  <div class="output" id="output">
+    <img id="resultImg" src="" alt="Generated Image"/>
+    <button class="download-btn" onclick="downloadImage()">⬇ Download Image</button>
+  </div>
+</div>
+
+<script>
+  // 🔁 REPLACE THIS with your actual Render backend URL
+  const API_URL = "https://ai-image-rrrq.onrender.com/generate";
+
+  let currentImageB64 = null;
+
+  async function generate() {
+    const prompt = document.getElementById("prompt").value.trim();
+    const btn = document.getElementById("generateBtn");
+    const status = document.getElementById("status");
+    const output = document.getElementById("output");
+
+    if (!prompt) {
+      setStatus("Please enter a prompt.", "error");
+      return;
+    }
+
+    btn.disabled = true;
+    output.style.display = "none";
+    setStatus('<span class="loader"></span>Generating... this may take 15–30 seconds', "loading");
+
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Unknown error");
+      }
+
+      currentImageB64 = data.image;
+      document.getElementById("resultImg").src = `data:image/png;base64,${data.image}`;
+      output.style.display = "block";
+      setStatus("✓ Image generated successfully!", "");
+    } catch (err) {
+      setStatus("Error: " + err.message, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function setStatus(msg, type) {
+    const el = document.getElementById("status");
+    el.innerHTML = msg;
+    el.className = "status " + (type || "");
+  }
+
+  function downloadImage() {
+    if (!currentImageB64) return;
+    const a = document.createElement("a");
+    a.href = `data:image/png;base64,${currentImageB64}`;
+    a.download = "generated-image.png";
+    a.click();
+  }
+</script>
+
+</body>
+</html>

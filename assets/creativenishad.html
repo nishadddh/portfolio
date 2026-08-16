@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Botpress Embedded Chat</title>
+
+  <style>
+    body{
+      margin:0;
+      padding:0;
+      background:#0b1020;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+      font-family:Arial;
+    }
+
+    .chat-container{
+      width:90%;
+      max-width:1200px;
+      height:90vh;
+      background:white;
+      border-radius:20px;
+      overflow:hidden;
+      box-shadow:0 0 40px rgba(0,0,0,0.4);
+    }
+
+    #bp-embedded-webchat{
+      width:100%;
+      height:100%;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="chat-container">
+    <div id="bp-embedded-webchat"></div>
+  </div>
+
+  <!-- Botpress Scripts -->
+  <script src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"></script>
+
+  <script
+    src="https://files.bpcontent.cloud/2026/05/08/19/20260508191339-JGWTXMS1.js"
+    defer>
+  </script>
+
+</body>
+</html>
