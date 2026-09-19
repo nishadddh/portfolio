@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Payable Amount Automation</title>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #f1f5f9; padding: 40px 20px; margin: 0; color: #1e293b; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+    h2 { margin-top: 0; font-size: 20px; color: #0f172a; }
+    .field { margin-bottom: 18px; }
+    label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #475569; }
+    input, select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+    .row { display: flex; gap: 12px; }
+    .col { flex: 1; }
+    .status { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #0284c7; padding: 12px; border-radius: 6px; font-size: 13px; margin-bottom: 18px; color: #334155; }
+    .highlight-box { background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; padding: 12px; border-radius: 6px; font-weight: 600; font-size: 14px; margin-bottom: 18px; }
+    button { width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 15px; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #0369a1; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>Invoice Payable Amount Tool</h2>
+
+  <div class="field">
+    <label>1. Upload Invoice PDF</label>
+    <input type="file" id="pdfInput" accept="application/pdf" />
+  </div>
+
+  <div class="row">
+    <div class="col field">
+      <label>Grand Total Amount</label>
+      <input type="number" id="grandTotalInput" step="0.01" placeholder="Auto-detected" oninput="calculatePayable()" />
+    </div>
+    <div class="col field">
+      <label>Currency</label>
+      <input type="text" id="currencyInput" value="$" oninput="calculatePayable()" />
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col field">
+      <label>Payment Ratio Preset</label>
+      <select id="ratioSelect" onchange="handleRatioChange()">
+        <option value="20:80">20:80 (20% initial)</option>
+        <option value="30:70">30:70 (30% initial)</option>
+        <option value="50:50">50:50 (50% initial)</option>
+        <option value="custom">Custom Ratio</option>
+      </select>
+    </div>
+    <div class="col field" id="customRatioGroup" style="display: none;">
+      <label>Type Custom Ratio</label>
+      <input type="text" id="customRatioInput" value="40:60" placeholder="e.g. 40:60" oninput="calculatePayable()" />
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Payable Amount (Auto / Manual Edit)</label>
+    <input type="number" id="manualPayableInput" step="0.01" placeholder="Auto-calculated" oninput="overridePayable()" />
+  </div>
+
+  <div class="highlight-box" id="payableDisplay">
+    Calculated Payable Amount: $ 0.00
+  </div>
+
+  <div class="status" id="statusBox">
+    Upload a PDF to auto-detect positions.
+  </div>
+
+  <button onclick="processAndDownload()">Modify & Download PDF</button>
+</div>
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+  let pdfBytesArray = null;
+  let grandTotalPos = { x: 380, y: 150 };
+  let amountValueX = 480;
+  let paymentTermsPos = { x: 50, y: 150 };
+  let isManualOverride = false;
+
+  document.getElementById('pdfInput').addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    pdfBytesArray = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: pdfBytesArray.slice(0) });
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+    const textContent = await page.getTextContent();
+
+    let foundGrandTotal = false;
+
+    // Scan PDF text layer to detect dynamic coordinates
+    for (let i = 0; i < textContent.items.length; i++) {
+      const item = textContent.items[i];
+      const str = item.str.trim();
+      const x = item.transform[4];
+      const y = item.transform[5];
+
+      if (str.toLowerCase().includes('grand total')) {
+        grandTotalPos = { x, y };
+        foundGrandTotal = true;
+      }
+
+      if (str.toLowerCase().includes('payment term')) {
+        paymentTermsPos = { x, y };
+      }
+
+      if (foundGrandTotal && /[\$\£\€\₹\d,]/.test(str)) {
+        const match = str.match(/([$£€₹]|USD|EUR|GBP)?\s*([\d,]+\.?\d*)/);
+        if (match && match[2] && parseFloat(match[2].replace(/,/g, '')) > 0) {
+          amountValueX = x;
+          document.getElementById('currencyInput').value = match[1] || "$";
+          document.getElementById('grandTotalInput').value = parseFloat(match[2].replace(/,/g, ''));
+          foundGrandTotal = false;
+        }
+      }
+    }
+
+    document.getElementById('statusBox').innerHTML = `Auto-detected <strong>Grand Total</strong> Y-position at ${Math.round(grandTotalPos.y)}px and <strong>Payment terms</strong> at ${Math.round(paymentTermsPos.y)}px.`;
+    isManualOverride = false;
+    calculatePayable();
+  });
+
+  function handleRatioChange() {
+    const select = document.getElementById('ratioSelect');
+    const customGroup = document.getElementById('customRatioGroup');
+    if (select.value === 'custom') {
+      customGroup.style.display = 'block';
+    } else {
+      customGroup.style.display = 'none';
+    }
+    isManualOverride = false;
+    calculatePayable();
+  }
+
+  function getSelectedRatio() {
+    const select = document.getElementById('ratioSelect');
+    if (select.value === 'custom') {
+      return document.getElementById('customRatioInput').value.trim() || "20:80";
+    }
+    return select.value;
+  }
+
+  function calculatePayable() {
+    const total = parseFloat(document.getElementById('grandTotalInput').value) || 0;
+    const currency = document.getElementById('currencyInput').value || "$";
+    const ratioStr = getSelectedRatio();
+    
+    const firstRatioPart = parseFloat(ratioStr.split(':')[0]) || 20;
+    const ratioPercent = firstRatioPart / 100;
+
+    let payableAmount = total * ratioPercent;
+    
+    if (!isManualOverride) {
+      document.getElementById('manualPayableInput').value = payableAmount.toFixed(2);
+    } else {
+      payableAmount = parseFloat(document.getElementById('manualPayableInput').value) || 0;
+    }
+
+    const formattedPayable = currency + " " + payableAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('payableDisplay').innerText = `Calculated Payable Amount (${ratioStr}): ${formattedPayable}`;
+
+    return { payableAmount, formattedPayable, ratioStr };
+  }
+
+  function overridePayable() {
+    isManualOverride = true;
+    calculatePayable();
+  }
+
+  async function processAndDownload() {
+    if (!pdfBytesArray) {
+      alert("Please upload an invoice PDF first.");
+      return;
+    }
+
+    try {
+      const pdfDoc = await PDFLib.PDFDocument.load(pdfBytesArray);
+      const page = pdfDoc.getPages()[0];
+
+      const fontBold = await pdfDoc.embedStandardFont(PDFLib.StandardFonts.HelveticaBold);
+      const fontRegular = await pdfDoc.embedStandardFont(PDFLib.StandardFonts.Helvetica);
+
+      const { formattedPayable, ratioStr } = calculatePayable();
+
+      // 1. Cover "Advance" under Payment terms
+      const advanceBoxY = paymentTermsPos.y - 14;
+      page.drawRectangle({
+        x: paymentTermsPos.x,
+        y: advanceBoxY,
+        width: 140,
+        height: 10,
+        color: PDFLib.rgb(1, 1, 1)
+      });
+
+      // 2. Write payment ratio slightly higher up ("tiny bit above") directly under "Payment terms"
+      page.drawText(ratioStr, {
+        x: paymentTermsPos.x,
+        y: advanceBoxY + 4, // Shifted slightly higher up
+        size: 8.5,          // Clean title size
+        font: fontRegular,
+        color: PDFLib.rgb(0, 0, 0)
+      });
+
+      // 3. Dynamic positioning for Payable Amount below Grand Total
+      const payableY = grandTotalPos.y - 24;
+      const fontSize = 12.27;
+
+      page.drawText('Payable Amount', {
+        x: grandTotalPos.x,
+        y: payableY,
+        size: fontSize,
+        font: fontBold,
+        color: PDFLib.rgb(0, 0, 0)
+      });
+
+      // Positioned directly at the detected amount column X coordinate
+      page.drawText(formattedPayable, {
+        x: amountValueX,
+        y: payableY,
+        size: fontSize,
+        font: fontBold,
+        color: PDFLib.rgb(0, 0, 0)
+      });
+
+      const modifiedPdfBytes = await pdfDoc.save();
+      const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Invoice_Payable_${ratioStr.replace(':', '-')}.pdf`;
+      link.click();
+    } catch (err) {
+      alert("Error modifying PDF: " + err.message);
+    }
+  }
+</script>
+
+</body>
+</html>
