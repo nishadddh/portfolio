@@ -38,8 +38,8 @@
       <input type="number" id="grandTotalInput" step="0.01" placeholder="Auto-detected" oninput="calculatePayable()" />
     </div>
     <div class="col field">
-      <label>Currency</label>
-      <input type="text" id="currencyInput" value="$" oninput="calculatePayable()" />
+      <label>Detected Currency</label>
+      <input type="text" id="currencyInput" value="$" placeholder="e.g. $, USD, AUD, SGD, EUR, £" oninput="calculatePayable()" />
     </div>
   </div>
 
@@ -69,7 +69,7 @@
   </div>
 
   <div class="status" id="statusBox">
-    Upload a PDF to auto-detect positions.
+    Upload a PDF to auto-detect currency ($ / AUD / SGD / EUR / GBP), amount, and positions.
   </div>
 
   <button onclick="processAndDownload()">Modify & Download PDF</button>
@@ -96,7 +96,9 @@
 
     let foundGrandTotal = false;
 
-    // Scan PDF text layer to detect dynamic coordinates
+    // Enhanced Regex to match USD ($), EUR (€), AUD (A$ / AU$ / AUD), SGD (S$ / SG$ / SGD), and GBP (£ / GBP)
+    const currencyAmountRegex = /(AU\$|A\$|SG\$|S\$|USD|EUR|GBP|AUD|SGD|[$£€₹])?\s*([\d,]+\.?\d*)/i;
+
     for (let i = 0; i < textContent.items.length; i++) {
       const item = textContent.items[i];
       const str = item.str.trim();
@@ -112,8 +114,8 @@
         paymentTermsPos = { x, y };
       }
 
-      if (foundGrandTotal && /[\$\£\€\₹\d,]/.test(str)) {
-        const match = str.match(/([$£€₹]|USD|EUR|GBP)?\s*([\d,]+\.?\d*)/);
+      if (foundGrandTotal && /[\$\£\€\₹\d,]/i.test(str)) {
+        const match = str.match(currencyAmountRegex);
         if (match && match[2] && parseFloat(match[2].replace(/,/g, '')) > 0) {
           amountValueX = x;
           document.getElementById('currencyInput').value = match[1] || "$";
@@ -123,7 +125,7 @@
       }
     }
 
-    document.getElementById('statusBox').innerHTML = `Auto-detected <strong>Grand Total</strong> Y-position at ${Math.round(grandTotalPos.y)}px and <strong>Payment terms</strong> at ${Math.round(paymentTermsPos.y)}px.`;
+    document.getElementById('statusBox').innerHTML = `Auto-detected <strong>Grand Total</strong> (${document.getElementById('currencyInput').value}) at Y: ${Math.round(grandTotalPos.y)}px and <strong>Payment terms</strong> at Y: ${Math.round(paymentTermsPos.y)}px.`;
     isManualOverride = false;
     calculatePayable();
   });
@@ -190,7 +192,7 @@
 
       const { formattedPayable, ratioStr } = calculatePayable();
 
-      // 1. Cover "Advance" under Payment terms
+      // 1. Cover "Advance" under Payment terms with precise white mask
       const advanceBoxY = paymentTermsPos.y - 14;
       page.drawRectangle({
         x: paymentTermsPos.x,
@@ -200,11 +202,11 @@
         color: PDFLib.rgb(1, 1, 1)
       });
 
-      // 2. Write payment ratio slightly higher up ("tiny bit above") directly under "Payment terms"
+      // 2. Write payment ratio slightly higher up directly under "Payment terms"
       page.drawText(ratioStr, {
         x: paymentTermsPos.x,
-        y: advanceBoxY + 4, // Shifted slightly higher up
-        size: 8.5,          // Clean title size
+        y: advanceBoxY + 4,
+        size: 8.5,
         font: fontRegular,
         color: PDFLib.rgb(0, 0, 0)
       });
@@ -221,7 +223,6 @@
         color: PDFLib.rgb(0, 0, 0)
       });
 
-      // Positioned directly at the detected amount column X coordinate
       page.drawText(formattedPayable, {
         x: amountValueX,
         y: payableY,
