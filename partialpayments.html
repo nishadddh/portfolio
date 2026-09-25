@@ -69,7 +69,7 @@
   </div>
 
   <div class="status" id="statusBox">
-    Upload a PDF to auto-detect currency ($ / AUD / SGD / EUR / GBP), amount, and positions.
+    Upload a PDF to auto-detect currency ($ / AUD / SGD / EUR / GBP), amount, and multi-page positions.
   </div>
 
   <button onclick="processAndDownload()">Modify & Download PDF</button>
@@ -79,53 +79,60 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
   let pdfBytesArray = null;
-  let grandTotalPos = { x: 380, y: 150 };
+  let originalFileName = "Invoice";
+  let grandTotalPos = { x: 380, y: 150, pageIndex: 0 };
   let amountValueX = 480;
-  let paymentTermsPos = { x: 50, y: 150 };
+  let paymentTermsPos = { x: 50, y: 150, pageIndex: 0 };
   let isManualOverride = false;
 
   document.getElementById('pdfInput').addEventListener('change', async function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Store base file name without extension
+    originalFileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+
     pdfBytesArray = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: pdfBytesArray.slice(0) });
     const pdf = await loadingTask.promise;
-    const page = await pdf.getPage(1);
-    const textContent = await page.getTextContent();
 
     let foundGrandTotal = false;
 
-    // Enhanced Regex to match USD ($), EUR (€), AUD (A$ / AU$ / AUD), SGD (S$ / SG$ / SGD), and GBP (£ / GBP)
     const currencyAmountRegex = /(AU\$|A\$|SG\$|S\$|USD|EUR|GBP|AUD|SGD|[$£€₹])?\s*([\d,]+\.?\d*)/i;
 
-    for (let i = 0; i < textContent.items.length; i++) {
-      const item = textContent.items[i];
-      const str = item.str.trim();
-      const x = item.transform[4];
-      const y = item.transform[5];
+    // Scan across all pages in the PDF document
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
 
-      if (str.toLowerCase().includes('grand total')) {
-        grandTotalPos = { x, y };
-        foundGrandTotal = true;
-      }
+      for (let i = 0; i < textContent.items.length; i++) {
+        const item = textContent.items[i];
+        const str = item.str.trim();
+        const x = item.transform[4];
+        const y = item.transform[5];
 
-      if (str.toLowerCase().includes('payment term')) {
-        paymentTermsPos = { x, y };
-      }
+        if (str.toLowerCase().includes('grand total')) {
+          grandTotalPos = { x, y, pageIndex: pageNum - 1 };
+          foundGrandTotal = true;
+        }
 
-      if (foundGrandTotal && /[\$\£\€\₹\d,]/i.test(str)) {
-        const match = str.match(currencyAmountRegex);
-        if (match && match[2] && parseFloat(match[2].replace(/,/g, '')) > 0) {
-          amountValueX = x;
-          document.getElementById('currencyInput').value = match[1] || "$";
-          document.getElementById('grandTotalInput').value = parseFloat(match[2].replace(/,/g, ''));
-          foundGrandTotal = false;
+        if (str.toLowerCase().includes('payment term')) {
+          paymentTermsPos = { x, y, pageIndex: pageNum - 1 };
+        }
+
+        if (foundGrandTotal && /[\$\£\€\₹\d,]/i.test(str)) {
+          const match = str.match(currencyAmountRegex);
+          if (match && match[2] && parseFloat(match[2].replace(/,/g, '')) > 0) {
+            amountValueX = x;
+            document.getElementById('currencyInput').value = match[1] || "$";
+            document.getElementById('grandTotalInput').value = parseFloat(match[2].replace(/,/g, ''));
+            foundGrandTotal = false;
+          }
         }
       }
     }
 
-    document.getElementById('statusBox').innerHTML = `Auto-detected <strong>Grand Total</strong> (${document.getElementById('currencyInput').value}) at Y: ${Math.round(grandTotalPos.y)}px and <strong>Payment terms</strong> at Y: ${Math.round(paymentTermsPos.y)}px.`;
+    document.getElementById('statusBox').innerHTML = `Auto-detected <strong>Grand Total</strong> (${document.getElementById('currencyInput').value}) on Page ${grandTotalPos.pageIndex + 1} at Y: ${Math.round(grandTotalPos.y)}px and <strong>Payment terms</strong> on Page ${paymentTermsPos.pageIndex + 1} at Y: ${Math.round(paymentTermsPos.y)}px.`;
     isManualOverride = false;
     calculatePayable();
   });
@@ -185,16 +192,19 @@
 
     try {
       const pdfDoc = await PDFLib.PDFDocument.load(pdfBytesArray);
-      const page = pdfDoc.getPages()[0];
+      const pages = pdfDoc.getPages();
 
       const fontBold = await pdfDoc.embedStandardFont(PDFLib.StandardFonts.HelveticaBold);
       const fontRegular = await pdfDoc.embedStandardFont(PDFLib.StandardFonts.Helvetica);
 
       const { formattedPayable, ratioStr } = calculatePayable();
 
-      // 1. Cover "Advance" under Payment terms with precise white mask
+      const paymentPage = pages[paymentTermsPos.pageIndex] || pages[pages.length - 1];
+      const grandTotalPage = pages[grandTotalPos.pageIndex] || pages[pages.length - 1];
+
+      // 1. Cover "Advance" under Payment terms
       const advanceBoxY = paymentTermsPos.y - 14;
-      page.drawRectangle({
+      paymentPage.drawRectangle({
         x: paymentTermsPos.x,
         y: advanceBoxY,
         width: 140,
@@ -202,8 +212,8 @@
         color: PDFLib.rgb(1, 1, 1)
       });
 
-      // 2. Write payment ratio slightly higher up directly under "Payment terms"
-      page.drawText(ratioStr, {
+      // 2. Write payment ratio directly under "Payment terms"
+      paymentPage.drawText(ratioStr, {
         x: paymentTermsPos.x,
         y: advanceBoxY + 4,
         size: 8.5,
@@ -215,7 +225,7 @@
       const payableY = grandTotalPos.y - 24;
       const fontSize = 12.27;
 
-      page.drawText('Payable Amount', {
+      grandTotalPage.drawText('Payable Amount', {
         x: grandTotalPos.x,
         y: payableY,
         size: fontSize,
@@ -223,7 +233,7 @@
         color: PDFLib.rgb(0, 0, 0)
       });
 
-      page.drawText(formattedPayable, {
+      grandTotalPage.drawText(formattedPayable, {
         x: amountValueX,
         y: payableY,
         size: fontSize,
@@ -235,7 +245,10 @@
       const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `Invoice_Payable_${ratioStr.replace(':', '-')}.pdf`;
+      
+      // Dynamic output file naming: [uploaded file name]_[ratio].pdf
+      link.download = `${originalFileName}_${ratioStr}.pdf`;
+      
       link.click();
     } catch (err) {
       alert("Error modifying PDF: " + err.message);
